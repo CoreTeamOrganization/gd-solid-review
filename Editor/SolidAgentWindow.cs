@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using UnityEngine.Networking;
 
 namespace SolidAgent
 {
@@ -51,22 +52,22 @@ namespace SolidAgent
         private Vector2 _sidebarScroll;
         private Vector2 _mainScroll;
 
-        // ── Palette — Game District Checkpoint Card theme ─────────────────────────
-        // Source: black card + #FFD000 yellow + dark grey + white text
-        private static readonly Color C_BG       = new Color32(10,  10,  10,  255); // near-black
-        private static readonly Color C_SURF     = new Color32(22,  22,  22,  255); // dark card bg
-        private static readonly Color C_SURF2    = new Color32(32,  32,  32,  255); // slightly lighter
-        private static readonly Color C_SURF3    = new Color32(42,  42,  42,  255); // hover/alt rows
-        private static readonly Color C_BORDER   = new Color32(58,  58,  58,  255); // subtle border
-        private static readonly Color C_ACCENT   = new Color32(255, 208, 0,   255); // GD Yellow #FFD000
+        // ── Palette — Game District Logo theme ───────────────────────────────────
+        // Source: logo bg #3A3A3A charcoal · bolt+text #FFD300 yellow · white wordmark
+        private static readonly Color C_BG       = new Color32(5,   5,   5,   255); // gamedistrict.co pure black
+        private static readonly Color C_SURF     = new Color32(18,  18,  18,  255); // GD card surface — dark but distinct
+        private static readonly Color C_SURF2    = new Color32(28,  28,  28,  255); // input fields / inner panels
+        private static readonly Color C_SURF3    = new Color32(40,  40,  40,  255); // hover / alt rows
+        private static readonly Color C_BORDER   = new Color32(60,  60,  60,  255); // visible border
+        private static readonly Color C_ACCENT   = new Color32(255, 211, 0,   255); // GD Yellow #FFD300
         private static readonly Color C_GREEN    = new Color32(80,  200, 100, 255); // pass / applied
         private static readonly Color C_RED      = new Color32(220, 60,  60,  255); // error / high sev
-        private static readonly Color C_YELLOW   = new Color32(255, 180, 0,   255); // warning / medium
+        private static readonly Color C_YELLOW   = new Color32(255, 185, 0,   255); // warning / medium (warm amber)
         private static readonly Color C_PURPLE   = new Color32(180, 140, 255, 255); // ISP badge
         private static readonly Color C_ORANGE   = new Color32(255, 140, 40,  255); // OCP badge
-        private static readonly Color C_TEXT     = new Color32(240, 240, 240, 255); // near-white
-        private static readonly Color C_MUTED    = new Color32(140, 140, 140, 255); // grey muted
-        private static readonly Color C_LINENUM  = new Color32(70,  70,  70,  255); // line numbers
+        private static readonly Color C_TEXT     = new Color32(255, 255, 255, 255); // pure white — logo wordmark
+        private static readonly Color C_MUTED    = new Color32(160, 160, 160, 255); // grey muted — readable on charcoal
+        private static readonly Color C_LINENUM  = new Color32(85,  85,  85,  255); // line numbers on charcoal
 
         // Syntax highlight colours
         private static readonly Color SYN_KEYWORD = new Color32(255, 123, 114, 255); // red   — keywords
@@ -78,8 +79,35 @@ namespace SolidAgent
         private static readonly Color SYN_PLAIN   = new Color32(201, 209, 217, 255); // default text
 
         // ── Styles ───────────────────────────────────────────────────────────────
-        private GUIStyle _sTitle, _sBody, _sMuted, _sCode, _sBadge, _sSec, _sLineNum;
-        private bool     _stylesReady;
+        private GUIStyle  _sTitle, _sBody, _sMuted, _sCode, _sBadge, _sSec, _sLineNum;
+        private bool      _stylesReady;
+        private Texture2D _bgDotTex; // hatch tile texture
+
+        // ── Game icon wallpaper ───────────────────────────────────────────────────
+        // Icons loaded at runtime from GD website — used as bg collage behind card
+        private static readonly string[] GameIconUrls = new[]
+        {
+            "https://framerusercontent.com/images/ncJq9t1KKlK4f3bhC1a6YkJ3Nc.png",
+            "https://framerusercontent.com/images/HOOT9MvVgJxkuAS5vVkYXiWA.png",
+            "https://framerusercontent.com/images/7MXDQOXu94W3dRCjRZn0utA1pNU.png",
+            "https://framerusercontent.com/images/irWxw1nbH9SgmJkIi07CvNKGVg.png",
+            "https://framerusercontent.com/images/eQrrhoI1E23l204WFQw92ztieA.png",
+            "https://framerusercontent.com/images/p5Ck7ZyhUy50uQhuUlSNba47aF0.png",
+            "https://framerusercontent.com/images/2W5q0ypQ1z5Kgees5wz1vcYCA.png",
+            "https://framerusercontent.com/images/LgygPKhXivBpAEeFZTzw3X5WUM.png",
+            "https://framerusercontent.com/images/wPpDAg2I3PdAkof034Ryj9v0M.png",
+            "https://framerusercontent.com/images/TPktNAhw1aJ1YLLJq0lLQz23DuM.png",
+            "https://framerusercontent.com/images/o5SwEJoSzrOz5shjAt1Tecz3Q.png",
+            "https://framerusercontent.com/images/Ol0GKMITPRA1byATfRCzLTP14.png",
+            "https://framerusercontent.com/images/37scNa59MXqgBm1VIW5wYFqo8Eg.png",
+            "https://framerusercontent.com/images/TERpfiluKDRS4Q0iDIfo0BrA6fk.png",
+            "https://framerusercontent.com/images/WXFzyh42Q0bzYEpfcy7e8lk99vU.png",
+            "https://framerusercontent.com/images/aT2btDiTphBU27PEJnAoic571qo.png",
+        };
+
+        private Texture2D[]  _gameIcons      = null;   // loaded textures
+        private int          _iconsLoaded    = 0;
+        private bool         _iconsStarted   = false;
 
         // ════════════════════════════════════════════════════════════════════════
         //  OPEN
@@ -93,8 +121,77 @@ namespace SolidAgent
             w.Show();
         }
 
-        private void OnEnable()  { _stylesReady = false; _scanRoot = EditorPrefs.GetString("SolidAgent_ScanRoot", ""); }
-        private void OnDisable() { EditorPrefs.SetString("SolidAgent_ScanRoot", _scanRoot ?? ""); }
+        private void OnEnable()
+        {
+            _stylesReady  = false;
+            _scanRoot     = EditorPrefs.GetString("SolidAgent_ScanRoot", "");
+            _gameIcons    = new Texture2D[GameIconUrls.Length];
+            _iconsStarted = false;
+            _iconsLoaded  = 0;
+            StartIconDownloads();
+        }
+
+        private void OnDisable()
+        {
+            EditorPrefs.SetString("SolidAgent_ScanRoot", _scanRoot ?? "");
+            // Destroy cached textures
+            if (_gameIcons != null)
+                foreach (var t in _gameIcons)
+                    if (t != null) DestroyImmediate(t);
+        }
+
+        private void StartIconDownloads()
+        {
+            if (_iconsStarted) return;
+            _iconsStarted = true;
+
+            // Fire all requests simultaneously
+            var requests  = new UnityWebRequest[GameIconUrls.Length];
+            double startTime = EditorApplication.timeSinceStartup;
+            const double TimeoutSeconds = 8.0; // give up silently after 8s
+
+            for (int i = 0; i < GameIconUrls.Length; i++)
+            {
+                try
+                {
+                    requests[i] = UnityWebRequestTexture.GetTexture(GameIconUrls[i] + "?width=128&height=128");
+                    requests[i].SendWebRequest();
+                }
+                catch { requests[i] = null; } // silently skip — firewall / no internet
+            }
+
+            EditorApplication.update += Poll;
+
+            void Poll()
+            {
+                bool timedOut = (EditorApplication.timeSinceStartup - startTime) > TimeoutSeconds;
+
+                for (int i = 0; i < requests.Length; i++)
+                {
+                    var req = requests[i];
+                    if (req == null) continue;
+                    if (!req.isDone && !timedOut) continue;
+
+                    // Only extract on real success — swallow everything else silently
+                    if (!timedOut && req.result == UnityWebRequest.Result.Success)
+                    {
+                        try
+                        {
+                            _gameIcons[i] = DownloadHandlerTexture.GetContent(req);
+                            _iconsLoaded++;
+                            Repaint();
+                        }
+                        catch { /* ignore */ }
+                    }
+
+                    try { req.Dispose(); } catch { }
+                    requests[i] = null;
+                }
+
+                if (requests.All(r => r == null))
+                    EditorApplication.update -= Poll;
+            }
+        }
 
         // ════════════════════════════════════════════════════════════════════════
         //  MAIN DRAW LOOP
@@ -103,7 +200,8 @@ namespace SolidAgent
         private void OnGUI()
         {
             InitStyles();
-            Bg(new Rect(0, 0, position.width, position.height), C_BG);
+            bool isHome = (_screen == Screen.Home && !_showSettings);
+            DrawBg(new Rect(0, 0, position.width, position.height), isHome);
 
             DrawTopBar();
 
@@ -291,7 +389,7 @@ namespace SolidAgent
             {
                 GUI.Label(new Rect(card.x + 20, iy, cw - 40, 16),
                     "Scanning is free  ·  AI fixes require a Claude API key",
-                    new GUIStyle(_sMuted) { fontSize = 10 });
+                    new GUIStyle(_sMuted) { fontSize = 10, normal = { textColor = new Color(C_TEXT.r, C_TEXT.g, C_TEXT.b, 0.7f) } });
                 iy += 26;
 
                 Bg(new Rect(card.x + 20, iy, cw - 40, 1),
@@ -318,7 +416,7 @@ namespace SolidAgent
             Bg(new Rect(card.x, sy, cw, 1), C_BORDER);
             GUI.Label(new Rect(card.x + 20, sy + 6, 200, 18), "ESTD. 2016  ·  STAY HUNGRY · STAY FOOLISH",
                 new GUIStyle(_sMuted) { fontSize = 7,
-                    normal = { textColor = new Color(C_MUTED.r, C_MUTED.g, C_MUTED.b, 0.45f) } });
+                    normal = { textColor = new Color(C_MUTED.r, C_MUTED.g, C_MUTED.b, 0.6f) } });
             GUI.Label(new Rect(card.x, sy + 5, cw - 18, 18), "⚡ GAME DISTRICT",
                 new GUIStyle(_sTitle) { fontSize = 10, fontStyle = FontStyle.Bold,
                     alignment = TextAnchor.MiddleRight,
@@ -1290,6 +1388,109 @@ namespace SolidAgent
                     normal    = { textColor = new Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 0.65f) }
                 });
             y += 20;
+        }
+
+        // ── Background — GD game icon collage + hatch overlay ────────────────────
+        private void DrawBg(Rect r, bool showIcons = false)
+        {
+            // Pure black base
+            EditorGUI.DrawRect(r, C_BG);
+
+            // ── Game icon wallpaper — Home screen only ────────────────────────────
+            if (showIcons && _gameIcons != null && _iconsLoaded > 0)
+            {
+                // Brick-offset grid of game icons as wallpaper
+                const float iconSize  = 110f;  // bigger = more visible
+                const float iconGap   = 16f;
+                float step = iconSize + iconGap;
+
+                int cols = Mathf.CeilToInt(r.width  / step) + 2;
+                int rows = Mathf.CeilToInt(r.height / step) + 2;
+
+                int total = GameIconUrls.Length;
+                int slot  = 0;
+
+                for (int row = 0; row < rows; row++)
+                {
+                    float xOff = (row % 2 == 0) ? 0f : step * 0.5f;
+                    for (int col = 0; col < cols; col++)
+                    {
+                        int texIdx = slot % total;
+                        slot++;
+                        var tex = _gameIcons[texIdx];
+                        if (tex == null) continue;
+
+                        float x = r.x + col * step + xOff - step * 0.6f;
+                        float y = r.y + row * step - step * 0.6f;
+
+                        GUI.color = new Color(1f, 1f, 1f, 0.38f); // visible but not distracting
+                        GUI.DrawTexture(new Rect(x, y, iconSize, iconSize), tex, ScaleMode.ScaleToFit, true);
+                    }
+                }
+                GUI.color = Color.white;
+
+                // Dark scrim — blends icons into bg, keeps card crisp on top
+                EditorGUI.DrawRect(r, new Color(0f, 0f, 0f, 0.44f));
+            }
+
+            // ── Diagonal hatch overlay ────────────────────────────────────────────
+            if (_bgDotTex == null) _bgDotTex = BuildHatchTex();
+            if (_bgDotTex != null)
+            {
+                GUI.color = Color.white;
+                int tileW = _bgDotTex.width;
+                int tileH = _bgDotTex.height;
+                for (float tx = r.x; tx < r.x + r.width; tx += tileW)
+                    for (float ty = r.y; ty < r.y + r.height; ty += tileH)
+                        GUI.DrawTexture(new Rect(tx, ty, tileW, tileH), _bgDotTex, ScaleMode.ScaleToFit);
+                GUI.color = Color.white;
+            }
+
+            // ── Yellow radial glow at center ──────────────────────────────────────
+            float cx = r.x + r.width  * 0.5f;
+            float cy = r.y + r.height * 0.5f;
+            for (int i = 8; i >= 1; i--)
+            {
+                float frac  = (float)i / 8f;
+                float hw    = r.width  * 0.55f * frac;
+                float hh    = r.height * 0.55f * frac;
+                float alpha = 0.022f * (1f - frac);
+                EditorGUI.DrawRect(
+                    new Rect(cx - hw, cy - hh, hw * 2f, hh * 2f),
+                    new Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, alpha));
+            }
+        }
+
+        // Builds a 16×16 tile with a single 45° diagonal line — GD site signature pattern
+        private Texture2D BuildHatchTex()
+        {
+            const int S = 16; // tile size — controls line spacing
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
+            tex.wrapMode   = TextureWrapMode.Repeat;
+
+            var pixels = new Color32[S * S];
+            // Transparent fill
+            for (int i = 0; i < pixels.Length; i++)
+                pixels[i] = new Color32(0, 0, 0, 0);
+
+            // Draw one anti-aliased diagonal pixel stripe at 45° (top-left to bottom-right)
+            // GD yellow at ~8% opacity — barely-there, exactly like the site
+            var lineCol  = new Color32(255, 211, 0, 20);  // #FFD300 @ 8%
+            var lineCol2 = new Color32(255, 211, 0, 8);   // softer neighbour for AA feel
+
+            for (int i = 0; i < S; i++)
+            {
+                int x = i;
+                int y = (S - 1 - i);           // anti-diagonal
+                pixels[y * S + x] = lineCol;
+                // soft pixel above/below for a subtle AA feel
+                if (y + 1 < S) pixels[(y + 1) * S + x] = lineCol2;
+            }
+
+            tex.SetPixels32(pixels);
+            tex.Apply(false, false);
+            return tex;
         }
 
         private void Bg(Rect r, Color c)       => EditorGUI.DrawRect(r, c);
